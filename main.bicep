@@ -1,278 +1,249 @@
-@description('The name of the Virtual Machine for Subnet1')
-param vm1Name string = 'vm1'
-
-@description('The name of the Virtual Machine for Subnet2')
-param vm2Name string = 'vm2'
-
-@description('Username for the Virtual Machine')
+@description('Username for the Virtual Machine.')
 param adminUsername string = 'michaelha'
 
-@description('Type of authentication to use on the Virtual Machine. SSH Reccommended')
+@description('Password for the Virtual Machine.')
+@minLength(12)
+@secure()
+param adminPassword string 
+
+@description('Unique DNS Name for the Public IP used to access the Virtual Machine.')
+param dnsLabelPrefix string = toLower('${vmName}-${uniqueString(resourceGroup().id, vmName)}')
+
+@description('Name for the Public IP used to access the Virtual Machine.')
+param publicIpName string = 'myPublicIP'
+
+@description('Allocation method for the Public IP used to access the Virtual Machine.')
 @allowed([
-  'sshPublicKey'
-  'password'
+  'Dynamic'
+  'Static'
 ])
-param authenticationType string = 'sshPublicKey'
+param publicIPAllocationMethod string = 'Dynamic'
 
-@description('SSH Key or password vor the VM')
-param adminPasswordOrKey string
+@description('SKU for the Public IP used to access the Virtual Machine.')
+@allowed([
+  'Basic'
+  'Standard'
+])
+param publicIpSku string = 'Basic'
 
-@description('Unique DNS Name for the public IP used to access VM on Subnet 1')
-param dnsLabelPrefixVm1 string = toLower('vm1-${uniqueString(resourceGroup().id)}')
+@description('The Windows version for the VM. This will pick a fully patched image of this given Windows version.')
+@allowed([
+'2008-R2-SP1'
+'2008-R2-SP1-smalldisk'
+'2012-Datacenter'
+'2012-datacenter-gensecond'
+'2012-Datacenter-smalldisk'
+'2012-datacenter-smalldisk-g2'
+'2012-Datacenter-zhcn'
+'2012-datacenter-zhcn-g2'
+'2012-R2-Datacenter'
+'2012-r2-datacenter-gensecond'
+'2012-R2-Datacenter-smalldisk'
+'2012-r2-datacenter-smalldisk-g2'
+'2012-R2-Datacenter-zhcn'
+'2012-r2-datacenter-zhcn-g2'
+'2016-Datacenter'
+'2016-datacenter-gensecond'
+'2016-datacenter-gs'
+'2016-Datacenter-Server-Core'
+'2016-datacenter-server-core-g2'
+'2016-Datacenter-Server-Core-smalldisk'
+'2016-datacenter-server-core-smalldisk-g2'
+'2016-Datacenter-smalldisk'
+'2016-datacenter-smalldisk-g2'
+'2016-Datacenter-with-Containers'
+'2016-datacenter-with-containers-g2'
+'2016-datacenter-with-containers-gs'
+'2016-Datacenter-zhcn'
+'2016-datacenter-zhcn-g2'
+'2019-Datacenter'
+'2019-Datacenter-Core'
+'2019-datacenter-core-g2'
+'2019-Datacenter-Core-smalldisk'
+'2019-datacenter-core-smalldisk-g2'
+'2019-Datacenter-Core-with-Containers'
+'2019-datacenter-core-with-containers-g2'
+'2019-Datacenter-Core-with-Containers-smalldisk'
+'2019-datacenter-core-with-containers-smalldisk-g2'
+'2019-datacenter-gensecond'
+'2019-datacenter-gs'
+'2019-Datacenter-smalldisk'
+'2019-datacenter-smalldisk-g2'
+'2019-Datacenter-with-Containers'
+'2019-datacenter-with-containers-g2'
+'2019-datacenter-with-containers-gs'
+'2019-Datacenter-with-Containers-smalldisk'
+'2019-datacenter-with-containers-smalldisk-g2'
+'2019-Datacenter-zhcn'
+'2019-datacenter-zhcn-g2'
+'2022-datacenter'
+'2022-datacenter-azure-edition'
+'2022-datacenter-azure-edition-core'
+'2022-datacenter-azure-edition-core-smalldisk'
+'2022-datacenter-azure-edition-smalldisk'
+'2022-datacenter-core'
+'2022-datacenter-core-g2'
+'2022-datacenter-core-smalldisk'
+'2022-datacenter-core-smalldisk-g2'
+'2022-datacenter-g2'
+'2022-datacenter-smalldisk'
+'2022-datacenter-smalldisk-g2'
+])
+param OSVersion string = '2022-datacenter-azure-edition-core'
 
-@description('Ubuntu version of the VMs')
-param ubuntuOSVersion string = '18.04-LTS'
+@description('Size of the virtual machine.')
+param vmSize string = 'Standard_D2s_v5'
 
-@description('Location for all resources')
+@description('Location for all resources.')
 param location string = resourceGroup().location
 
-@description('SIze of the VM')
-param vmSize string = 'Standard_B2s'
+@description('Name of the virtual machine.')
+param vmName string = 'simple-vm'
 
-@description('Name of the VNET')
-param virtualNetworkName string = 'vNet'
+var storageAccountName = 'bootdiags${uniqueString(resourceGroup().id)}'
+var nicName = 'myVMNic'
+var addressPrefix = '10.0.0.0/16'
+var subnetName = 'Subnet'
+var subnetPrefix = '10.0.0.0/24'
+var virtualNetworkName = 'MyVNET'
+var networkSecurityGroupName = 'default-NSG'
 
-@description('Name of subnet1')
-param subnet1Name string = 'Subnet1'
-
-@description('Name of subnet2')
-param subnet2Name string = 'Subnet2'
-
-@description('Name of Security Group for Subnet1')
-param networkSecurityGroupName1 string = '${subnet1Name}--nsg'
-
-@description('Name of Security Group for Subnet2')
-param networkSecurityGroupName2 string = '${subnet2Name}--nsg'
-
-var publicIPAddressNameVm1 = '${vm1Name}PublicIP'
-var networkInterfaceNameVm1 = '${vm1Name}NetInt'
-var networkInterfaceNameVm2 = '${vm2Name}NetInt'
-
-var osDiskType = 'Standard_LRS'
-var subnet1AddressPrefix = '10.1.0.0/24'
-var subnet2AddressPrefix = '10.1.1.0/24'
-var vNetAddressPrefix = '10.1.0.0/16'
-
-var linuxConfiguration = {
-  disablePasswordAuthentication: true
-  ssh: {
-    publicKeys: [
-      {
-        path: '/home/${adminUsername}/.ssh/authorized_keys'
-        keyData: adminPasswordOrKey
-      }
-    ]
-  }
-}
-
-resource nic1 'Microsoft.Network/networkInterfaces@2022-01-01' = {
-  name: networkInterfaceNameVm1
+resource stg 'Microsoft.Storage/storageAccounts@2021-04-01' = {
+  name: storageAccountName
   location: location
-  properties: {
-    ipConfigurations: [
-      {
-        name: 'ipconfig1'
-        properties: {
-          subnet: {
-            id: subnet1.id
-          }
-          privateIPAllocationMethod: 'Dynamic'
-          publicIPAddress:{
-            id: publicIP1.id
-          }
-        }
-      }
-    ]
-    networkSecurityGroup:{
-      id: nsg1.id
-    }
+  sku: {
+    name: 'Standard_LRS'
   }
-}
-resource nsg1 'Microsoft.Network/networkSecurityGroups@2022-01-01'={
-  name: networkSecurityGroupName1
-  location:location
-  properties:{
-    securityRules:[
-      {
-        name: 'SSH'
-        properties: {
-          priority: 1000
-          protocol: 'Tcp'
-          access: 'Allow'
-          direction: 'Inbound'
-          sourceAddressPrefix: '*'
-          sourcePortRange: '*'
-          destinationAddressPrefix: '*'
-          destinationPortRange: '22'
-        }
-      }
-    ]
-  }
+  kind: 'Storage'
 }
 
-resource nic2 'Microsoft.Network/networkInterfaces@2022-01-01' = {
-  name: networkInterfaceNameVm2
+resource pip 'Microsoft.Network/publicIPAddresses@2021-02-01' = {
+  name: publicIpName
   location: location
-  properties: {
-    ipConfigurations: [
-      {
-        name: 'ipconfig1'
-        properties: {
-          subnet: {
-            id: subnet2.id
-          }
-          privateIPAllocationMethod: 'Dynamic'
-        }
-      }
-    ]
-    networkSecurityGroup:{
-      id: nsg2.id
-    }
-  }
-}
-
-resource nsg2 'Microsoft.Network/networkSecurityGroups@2022-01-01'={
-  name: networkSecurityGroupName2
-  location:location
-  properties:{
-    securityRules:[
-      {
-        name: 'SSH'
-        properties: {
-          priority: 1000
-          protocol: 'Tcp'
-          access: 'Allow'
-          direction: 'Inbound'
-          sourceAddressPrefix: '*'
-          sourcePortRange: '*'
-          destinationAddressPrefix: '*'
-          destinationPortRange: '22'
-      }
-      }
-    ]
-  }
-}
-
-resource vNet 'Microsoft.Network/virtualNetworks@2022-01-01'={
-  name: virtualNetworkName
-  location:location
-  properties:{
-    addressSpace:{
-      addressPrefixes:[
-        vNetAddressPrefix
-      ]
-    }
-  }
-}
-
-resource subnet1 'Microsoft.Network/virtualNetworks/subnets@2022-01-01'={
-  parent: vNet
-  name:subnet1Name
-  properties:{
-    addressPrefix: subnet1AddressPrefix
-    privateEndpointNetworkPolicies: 'Enabled'
-    privateLinkServiceNetworkPolicies: 'Enabled'
-  }
-}
-
-resource subnet2 'Microsoft.Network/virtualNetworks/subnets@2022-01-01'={
-  parent: vNet
-  name:subnet2Name
-  properties:{
-    addressPrefix: subnet2AddressPrefix
-    privateEndpointNetworkPolicies: 'Enabled'
-    privateLinkServiceNetworkPolicies: 'Enabled'
-  }
-}
-
-resource publicIP1 'Microsoft.Network/publicIPAddresses@2019-11-01' = {
-  name: publicIPAddressNameVm1
-  location: location
-  sku:{
-    name:'Basic'
+  sku: {
+    name: publicIpSku
   }
   properties: {
-    publicIPAllocationMethod: 'Dynamic'
-    publicIPAddressVersion: 'IPv4'
+    publicIPAllocationMethod: publicIPAllocationMethod
     dnsSettings: {
-      domainNameLabel: dnsLabelPrefixVm1
+      domainNameLabel: dnsLabelPrefix
     }
-    idleTimeoutInMinutes: 4
   }
 }
 
-resource vm1 'Microsoft.Compute/virtualMachines@2020-12-01' = {
-  name: vm1Name
+resource securityGroup 'Microsoft.Network/networkSecurityGroups@2021-02-01' = {
+  name: networkSecurityGroupName
   location: location
-  properties:{
-    hardwareProfile:{
-      vmSize: vmSize
-    }
-    storageProfile:{
-      osDisk:{
-        createOption:'FromImage'
-        managedDisk:{
-          storageAccountType: osDiskType
+  properties: {
+    securityRules: [
+      {
+        name: 'default-allow-3389'
+        properties: {
+          priority: 1000
+          access: 'Allow'
+          direction: 'Inbound'
+          destinationPortRange: '3389'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          sourceAddressPrefix: '*'
+          destinationAddressPrefix: '*'
         }
       }
-      imageReference:{
-        publisher: 'Canonical'
-        offer: 'UbuntuServer'
-        sku: ubuntuOSVersion
-        version:'latest'
-      }
+    ]
+  }
+}
+
+resource vn 'Microsoft.Network/virtualNetworks@2021-02-01' = {
+  name: virtualNetworkName
+  location: location
+  properties: {
+    addressSpace: {
+      addressPrefixes: [
+        addressPrefix
+      ]
     }
-    networkProfile:{
-      networkInterfaces:[
+    subnets: [
+      {
+        name: subnetName
+        properties: {
+          addressPrefix: subnetPrefix
+          networkSecurityGroup: {
+            id: securityGroup.id
+          }
+        }
+      }
+    ]
+  }
+}
+
+resource nic 'Microsoft.Network/networkInterfaces@2021-02-01' = {
+  name: nicName
+  location: location
+  properties: {
+    ipConfigurations: [
+      {
+        name: 'ipconfig1'
+        properties: {
+          privateIPAllocationMethod: 'Dynamic'
+          publicIPAddress: {
+            id: pip.id
+          }
+          subnet: {
+            id: resourceId('Microsoft.Network/virtualNetworks/subnets', vn.name, subnetName)
+          }
+        }
+      }
+    ]
+  }
+}
+
+resource vm 'Microsoft.Compute/virtualMachines@2021-03-01' = {
+  name: vmName
+  location: location
+  properties: {
+    hardwareProfile: {
+      vmSize: vmSize
+    }
+    osProfile: {
+      computerName: vmName
+      adminUsername: adminUsername
+      adminPassword: adminPassword
+    }
+    storageProfile: {
+      imageReference: {
+        publisher: 'MicrosoftWindowsServer'
+        offer: 'WindowsServer'
+        sku: OSVersion
+        version: 'latest'
+      }
+      osDisk: {
+        createOption: 'FromImage'
+        managedDisk: {
+          storageAccountType: 'StandardSSD_LRS'
+        }
+      }
+      dataDisks: [
         {
-          id: nic1.id
+          diskSizeGB: 1023
+          lun: 0
+          createOption: 'Empty'
         }
       ]
     }
-    osProfile:{
-      computerName: vm1Name
-      adminUsername: adminUsername
-      adminPassword: adminPasswordOrKey
-      linuxConfiguration: any(authenticationType=='password'? null: linuxConfiguration)
-    }
-  }
-}
-
-resource vm2 'Microsoft.Compute/virtualMachines@2020-12-01' = {
-  name: vm1Name
-  location: location
-  properties:{
-    hardwareProfile:{
-      vmSize: vmSize
-    }
-    storageProfile:{
-      osDisk:{
-        createOption:'FromImage'
-        managedDisk:{
-          storageAccountType: osDiskType
-        }
-      }
-      imageReference:{
-        publisher: 'Canonical'
-        offer: 'UbuntuServer'
-        sku: ubuntuOSVersion
-        version:'latest'
-      }
-    }
-    networkProfile:{
-      networkInterfaces:[
+    networkProfile: {
+      networkInterfaces: [
         {
-          id: nic2.id
+          id: nic.id
         }
       ]
     }
-    osProfile:{
-      computerName: vm2Name
-      adminUsername: adminUsername
-      adminPassword: adminPasswordOrKey
-      linuxConfiguration: any(authenticationType=='password'? null: linuxConfiguration)
+    diagnosticsProfile: {
+      bootDiagnostics: {
+        enabled: true
+        storageUri: stg.properties.primaryEndpoints.blob
+      }
     }
   }
 }
 
-output hostname1 string = publicIP1.properties.dnsSettings.fqdn
+output hostname string = pip.properties.dnsSettings.fqdn

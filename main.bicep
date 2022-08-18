@@ -1,10 +1,10 @@
 @description('Username for the Virtual Machine.')
-param adminUsername string = 'michaelha'
+param adminUsername string
 
 @description('Password for the Virtual Machine.')
 @minLength(12)
 @secure()
-param adminPassword string 
+param adminPassword string
 
 @description('Unique DNS Name for the Public IP used to access the Virtual Machine.')
 param dnsLabelPrefix string = toLower('${vmName}-${uniqueString(resourceGroup().id, vmName)}')
@@ -89,7 +89,7 @@ param publicIpSku string = 'Basic'
 '2022-datacenter-smalldisk'
 '2022-datacenter-smalldisk-g2'
 ])
-param OSVersion string = '2022-datacenter-azure-edition-core'
+param OSVersion string = '2019-datacenter-gensecond'
 
 @description('Size of the virtual machine.')
 param vmSize string = 'Standard_D2s_v5'
